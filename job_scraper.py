@@ -57,32 +57,34 @@ def scrape_comeet_jobs(url, company_name):
 
         jobs = []
 
-        # Attempt to locate job listings in the page source
-        job_listings = soup.find_all('div', class_=re.compile('job|listing|position', re.I))
+        # Find all job listings using the 'positionItem' class
+        job_listings = soup.find_all('a', class_='positionItem')
 
         logging.info(f"Found {len(job_listings)} potential job listings in the page for {company_name}")
 
         for job in job_listings:
-            title_element = job.find('h2', class_=re.compile('title', re.I)) or job.find('a', class_=re.compile('title',
-                                                                                                                re.I))
-            location_element = job.find('span', class_=re.compile('location', re.I))
-            job_url_element = job.find('a', href=True)
+            # Extract job title
+            title_element = job.find('span', class_='positionLink')
+            title_text = title_element.get_text(strip=True) if title_element else ''
 
-            if title_element and location_element:
-                title_text = title_element.get_text(strip=True)
-                location_text = location_element.get_text(strip=True)
-                job_link = job_url_element['href'] if job_url_element else ''
+            # Extract job location
+            location_element = job.find('li', ng_if=re.compile(r'location'))
+            location_text = location_element.get_text(strip=True) if location_element else ''
 
-                logging.info(f"Processing job: {title_text} in {location_text}")
-                if is_valid_job(title_text, location_text):
-                    logging.info(f"Valid junior job found: {title_text}")
-                    jobs.append({
-                        'company': company_name,
-                        'title': title_text,
-                        'location': location_text,
-                        'description': '',  # Add description extraction logic if available
-                        'link': job_link
-                    })
+            # Extract job link
+            job_link = job['href'] if job.has_attr('href') else ''
+
+            logging.info(f"Processing job: {title_text} in {location_text}")
+
+            if is_valid_job(title_text, location_text):
+                logging.info(f"Valid junior job found: {title_text}")
+                jobs.append({
+                    'company': company_name,
+                    'title': title_text,
+                    'location': location_text,
+                    'description': '',  # Add description extraction logic if available
+                    'link': job_link
+                })
 
         if jobs:
             logging.info(f"Found {len(jobs)} valid junior jobs for {company_name}")
@@ -155,6 +157,8 @@ def job_scraping_task():
     companies = {
         "inmanage": "https://www.comeet.com/jobs/inmanage/B7.006",
         "spark hire": "https://www.comeet.com/jobs/spark-hire/30.005",
+        "okoora": "https://www.comeet.com/jobs/okoora/85.00C",
+        "exodigo": "https://www.comeet.com/jobs/exodigo/89.005",
         # Add more companies using Comeet template here
     }
 
