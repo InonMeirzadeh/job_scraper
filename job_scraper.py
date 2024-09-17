@@ -20,7 +20,7 @@ def is_valid_job(title, location):
     """
     # Additional keywords to capture junior-level positions
     junior_keywords = ['junior', 'entry-level', 'associate', 'graduate', 'מתחיל', 'זוטר']
-    location_keywords = ['israel', 'תל אביב', 'ירושלים', 'חיפה', 'ישראל']
+    location_keywords = ['ISRAEL', 'TEL AVIV', 'ירושלים', 'חיפה', 'ישראל']
 
     title_lower = title.lower()
     location_lower = location.lower()
@@ -154,6 +154,7 @@ def send_email_notification(jobs):
 def job_scraping_task():
     companies = {
         "inmanage": "https://www.comeet.com/jobs/inmanage/B7.006",
+        "spark hire": "https://www.comeet.com/jobs/spark-hire/30.005",
         # Add more companies using Comeet template here
     }
 
