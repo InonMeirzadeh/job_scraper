@@ -1,13 +1,13 @@
 from datetime import datetime
-import requests
-from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 import psycopg2
 import schedule
 import time
 import smtplib
 from email.mime.text import MIMEText
 import logging
-import json
+from bs4 import BeautifulSoup
 import re
 
 # Set up logging
@@ -18,68 +18,81 @@ def is_valid_job(title, location):
     """
     Checks if the job is a junior position in Israel.
     """
-    return 'junior' in title.lower() and 'israel' in location.lower()
+    # Additional keywords to capture junior-level positions
+    junior_keywords = ['junior', 'entry-level', 'associate', 'graduate', 'מתחיל', 'זוטר']
+    location_keywords = ['israel', 'תל אביב', 'ירושלים', 'חיפה', 'ישראל']
+
+    title_lower = title.lower()
+    location_lower = location.lower()
+
+    # Check if any of the junior keywords and location keywords are present
+    is_junior = any(keyword in title_lower for keyword in junior_keywords)
+    is_in_israel = any(keyword in location_lower for keyword in location_keywords)
+
+    return is_junior and is_in_israel
 
 
 def scrape_comeet_jobs(url, company_name):
-    retries = 3
-    while retries > 0:
-        try:
-            response = requests.get(url, timeout=10)
-            if response.status_code == 200:
-                break
-            else:
-                logging.warning(f"Failed to retrieve page for {company_name}. Status code: {response.status_code}")
-        except requests.exceptions.RequestException as e:
-            logging.error(f"Error fetching the page for {company_name}: {e}")
-        retries -= 1
-        time.sleep(3)
+    # Set up Chrome options
+    chrome_options = Options()
+    # Uncomment to see the browser in action
+    # chrome_options.add_argument('--headless')  # Run in headless mode (no GUI)
+    chrome_options.add_argument('--disable-gpu')  # Disable GPU acceleration
+    chrome_options.add_argument('--no-sandbox')  # Bypass OS security model
+    chrome_options.add_argument('--disable-dev-shm-usage')  # Overcome limited resource problems
 
-    if retries == 0:
-        logging.error(f"Failed to retrieve page for {company_name} after retries.")
-        return []
+    # Initialize the Chrome driver
+    driver = webdriver.Chrome(options=chrome_options)
 
-    soup = BeautifulSoup(response.content, 'html.parser')
-    jobs = []
+    try:
+        logging.info(f"Loading page for {company_name}...")
+        driver.get(url)
+        time.sleep(5)  # Allow time for JavaScript to execute
 
-    # Try to find job data in any script tag
-    script_tags = soup.find_all('script')
-    job_data = None
-    for script in script_tags:
-        if script.string and 'gnewtonJobsJson' in script.string:
-            match = re.search(r'gnewtonJobsJson\s*=\s*(\[.*?\]);', script.string, re.DOTALL)
-            if match:
-                try:
-                    job_data = json.loads(match.group(1))
-                    break
-                except json.JSONDecodeError:
-                    continue
+        # Get the page source after loading
+        page_source = driver.page_source
 
-    if job_data:
-        logging.info(f"Found {len(job_data)} job listings for {company_name}")
-        for job in job_data:
-            title = job.get('title', '')
-            location = job.get('location', '')
-            description = job.get('description', '')
-            job_url = f"{url.rstrip('/')}/jobs/{job.get('id')}"
+        # Use BeautifulSoup to parse the page content
+        soup = BeautifulSoup(page_source, 'html.parser')
 
-            logging.info(f"Processing job: {title} in {location}")
-            if is_valid_job(title, location):
-                logging.info(f"Valid junior job found: {title}")
-                jobs.append({
-                    'company': company_name,
-                    'title': title,
-                    'location': location,
-                    'description': description,
-                    'link': job_url
-                })
-            else:
-                logging.info(f"Job doesn't meet criteria: {title}")
-    else:
-        logging.error(f"Could not find job data for {company_name}")
+        jobs = []
 
-    logging.info(f"Found {len(jobs)} valid junior jobs for {company_name}")
-    return jobs
+        # Attempt to locate job listings in the page source
+        job_listings = soup.find_all('div', class_=re.compile('job|listing|position', re.I))
+
+        logging.info(f"Found {len(job_listings)} potential job listings in the page for {company_name}")
+
+        for job in job_listings:
+            title_element = job.find('h2', class_=re.compile('title', re.I)) or job.find('a', class_=re.compile('title',
+                                                                                                                re.I))
+            location_element = job.find('span', class_=re.compile('location', re.I))
+            job_url_element = job.find('a', href=True)
+
+            if title_element and location_element:
+                title_text = title_element.get_text(strip=True)
+                location_text = location_element.get_text(strip=True)
+                job_link = job_url_element['href'] if job_url_element else ''
+
+                logging.info(f"Processing job: {title_text} in {location_text}")
+                if is_valid_job(title_text, location_text):
+                    logging.info(f"Valid junior job found: {title_text}")
+                    jobs.append({
+                        'company': company_name,
+                        'title': title_text,
+                        'location': location_text,
+                        'description': '',  # Add description extraction logic if available
+                        'link': job_link
+                    })
+
+        if jobs:
+            logging.info(f"Found {len(jobs)} valid junior jobs for {company_name}")
+        else:
+            logging.error(f"No valid job data found for {company_name}")
+
+        return jobs
+
+    finally:
+        driver.quit()
 
 
 def store_jobs_in_database(jobs):
