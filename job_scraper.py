@@ -18,10 +18,13 @@ def is_valid_job(title, location):
     """
     Checks if the job is a junior position in Israel.
     """
-    # Additional keywords to capture junior-level positions
+    # Define keywords to capture junior-level positions
     junior_keywords = ['junior', 'entry-level', 'associate', 'graduate', 'מתחיל', 'זוטר']
-    location_keywords = ['ISRAEL', 'TEL AVIV', 'ירושלים', 'חיפה', 'ישראל']
+    # Define keywords for locations in Israel
+    location_keywords = ['israel', 'tel aviv', 'jerusalem', 'haifa', 'bnei brak', 'champion tower', 'שששת הימים',
+                         'רמת גן', 'הרצליה']
 
+    # Convert title and location to lowercase for case-insensitive matching
     title_lower = title.lower()
     location_lower = location.lower()
 
@@ -64,7 +67,8 @@ def scrape_comeet_jobs(url, company_name):
 
         for job in job_listings:
             # Extract job title
-            title_text = job.get_text(strip=True)
+            title_text = job.find('span', class_='positionLink').get_text(strip=True) if job.find('span',
+                                                                                                  class_='positionLink') else ''
 
             # Extract job link
             job_link = job['href'] if job.has_attr('href') else ''
@@ -74,14 +78,14 @@ def scrape_comeet_jobs(url, company_name):
 
             # Extract job location by finding the 'fa fa-map-marker' icon's parent
             location_element = parent.find('i', class_='fa fa-map-marker')
-            location_text = location_element.find_next(string=True).strip() if location_element else ''
+            location_text = location_element.find_next_sibling(text=True).strip() if location_element else ''
 
-            # Extract experience level
-            experience_element = parent.find(string=re.compile(r'Entry-level|Mid-level|Senior'))
+            # Extract experience level using more precise text search
+            experience_element = parent.find(string=re.compile(r'\b(Entry-level|Mid-level|Senior)\b'))
             experience_level = experience_element.strip() if experience_element else ''
 
             # Extract employment type
-            employment_type_element = parent.find(string=re.compile(r'Full-time|Part-time|Contract'))
+            employment_type_element = parent.find(string=re.compile(r'\b(Full-time|Part-time|Contract)\b'))
             employment_type = employment_type_element.strip() if employment_type_element else ''
 
             logging.info(f"Processing job: {title_text} in {location_text} with experience level {experience_level}")
@@ -107,7 +111,6 @@ def scrape_comeet_jobs(url, company_name):
 
     finally:
         driver.quit()
-
 
 
 def store_jobs_in_database(jobs):
@@ -148,8 +151,7 @@ def send_email_notification(jobs):
     subject = "New Junior Job Postings in Israel"
     body = "Here are the new junior job postings in Israel:\n\n"
     for job in jobs:
-        body += f"Company: {job['company']}\nTitle: {job['title']}\nLocation: {job['location']}\nDescription:" \
-                f" {job['description']}\nLink: {job['link']}\n\n"
+        body += f"Company: {job['company']}\nTitle: {job['title']}\nLocation: {job['location']}\nDescription: {job['description']}\nLink: {job['link']}\n\n"
 
     msg = MIMEText(body)
     msg['Subject'] = subject
@@ -159,7 +161,8 @@ def send_email_notification(jobs):
     try:
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.starttls()
-            server.login(sender, "lrda hqrz qzax blkf")
+            server.login(sender,
+                         "lrda hqrz qzax blkf")  # Replace with your actual password or use an app-specific password
             server.send_message(msg)
         logging.info(f"Email sent with {len(jobs)} job listings")
     except Exception as e:
