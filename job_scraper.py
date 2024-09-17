@@ -1,3 +1,4 @@
+import re
 from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -8,7 +9,6 @@ import smtplib
 from email.mime.text import MIMEText
 import logging
 from bs4 import BeautifulSoup
-import re
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -64,17 +64,27 @@ def scrape_comeet_jobs(url, company_name):
 
         for job in job_listings:
             # Extract job title
-            title_element = job.find('span', class_='positionLink')
-            title_text = title_element.get_text(strip=True) if title_element else ''
-
-            # Extract job location
-            location_element = job.find('li', ng_if=re.compile(r'location'))
-            location_text = location_element.get_text(strip=True) if location_element else ''
+            title_text = job.get_text(strip=True)
 
             # Extract job link
             job_link = job['href'] if job.has_attr('href') else ''
 
-            logging.info(f"Processing job: {title_text} in {location_text}")
+            # Find the parent container to locate location and experience details
+            parent = job.find_parent()
+
+            # Extract job location by finding the 'fa fa-map-marker' icon's parent
+            location_element = parent.find('i', class_='fa fa-map-marker')
+            location_text = location_element.find_next(string=True).strip() if location_element else ''
+
+            # Extract experience level
+            experience_element = parent.find(string=re.compile(r'Entry-level|Mid-level|Senior'))
+            experience_level = experience_element.strip() if experience_element else ''
+
+            # Extract employment type
+            employment_type_element = parent.find(string=re.compile(r'Full-time|Part-time|Contract'))
+            employment_type = employment_type_element.strip() if employment_type_element else ''
+
+            logging.info(f"Processing job: {title_text} in {location_text} with experience level {experience_level}")
 
             if is_valid_job(title_text, location_text):
                 logging.info(f"Valid junior job found: {title_text}")
@@ -82,6 +92,8 @@ def scrape_comeet_jobs(url, company_name):
                     'company': company_name,
                     'title': title_text,
                     'location': location_text,
+                    'experience_level': experience_level,
+                    'employment_type': employment_type,
                     'description': '',  # Add description extraction logic if available
                     'link': job_link
                 })
@@ -97,6 +109,7 @@ def scrape_comeet_jobs(url, company_name):
         driver.quit()
 
 
+
 def store_jobs_in_database(jobs):
     """
     Stores the scraped job postings in a PostgreSQL database.
@@ -104,7 +117,7 @@ def store_jobs_in_database(jobs):
     conn = psycopg2.connect(
         dbname='job_scraper',
         user='postgres',
-        password='*******',
+        password='INon16meir!',
         host='localhost',
         port='5432'
     )
@@ -146,7 +159,7 @@ def send_email_notification(jobs):
     try:
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.starttls()
-            server.login(sender, "*****")
+            server.login(sender, "lrda hqrz qzax blkf")
             server.send_message(msg)
         logging.info(f"Email sent with {len(jobs)} job listings")
     except Exception as e:
