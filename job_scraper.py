@@ -38,11 +38,9 @@ def is_valid_job(title, location):
 def scrape_comeet_jobs(url, company_name):
     # Set up Chrome options
     chrome_options = Options()
-    # Uncomment to see the browser in action
-    # chrome_options.add_argument('--headless')  # Run in headless mode (no GUI)
-    chrome_options.add_argument('--disable-gpu')  # Disable GPU acceleration
-    chrome_options.add_argument('--no-sandbox')  # Bypass OS security model
-    chrome_options.add_argument('--disable-dev-shm-usage')  # Overcome limited resource problems
+    chrome_options.add_argument('--disable-gpu')
+    chrome_options.add_argument('--no-sandbox')
+    chrome_options.add_argument('--disable-dev-shm-usage')
 
     # Initialize the Chrome driver
     driver = webdriver.Chrome(options=chrome_options)
@@ -60,36 +58,40 @@ def scrape_comeet_jobs(url, company_name):
 
         jobs = []
 
-        # Find all job listings using the 'positionItem' class
-        job_listings = soup.find_all('a', class_='positionItem')
+        # Find job listings by searching for anchors with job links
+        job_listings = soup.find_all('a', href=True, class_=re.compile(r'positionItem|job|listing|positionLink|ng-if', re.I))
 
         logging.info(f"Found {len(job_listings)} potential job listings in the page for {company_name}")
 
         for job in job_listings:
-            # Extract job title
-            title_text = job.find('span', class_='positionLink').get_text(strip=True) if job.find('span',
-                                                                                                  class_='positionLink') else ''
+            # Extract job title from the anchor or its children
+            title_element = job.find('span', class_=re.compile(r'positionItem|positionLink|title|jobTitle|ng-if', re.I)) or job.find('h2')
+            title_text = title_element.get_text(strip=True) if title_element else 'Unknown Title'
 
             # Extract job link
             job_link = job['href'] if job.has_attr('href') else ''
 
-            # Find the parent container to locate location and experience details
+            # Find the parent or nearby container to extract job details
             parent = job.find_parent()
 
-            # Extract job location by finding the 'fa fa-map-marker' icon's parent
-            location_element = parent.find('i', class_='fa fa-map-marker')
-            location_text = location_element.find_next_sibling(text=True).strip() if location_element else ''
+            # Extract job location by looking for location elements
+            location_element = parent.find('i', class_=re.compile(r'fa-map-marker|location', re.I)) or parent.find(
+                string=re.compile(r'(Location|Tel Aviv|Israel|Jerusalem|Haifa)', re.I))
+            location_text = location_element.find_next_sibling(
+                text=True).strip() if location_element else 'Unknown Location'
 
-            # Extract experience level using more precise text search
-            experience_element = parent.find(string=re.compile(r'\b(Entry-level|Mid-level|Senior)\b'))
-            experience_level = experience_element.strip() if experience_element else ''
+            # Extract experience level by looking for relevant text
+            experience_element = parent.find(string=re.compile(r'\b(Entry-level|Junior|Mid-level|Senior|מתחיל|זוטר)\b'))
+            experience_level = experience_element.strip() if experience_element else 'Unknown Experience'
 
-            # Extract employment type
-            employment_type_element = parent.find(string=re.compile(r'\b(Full-time|Part-time|Contract)\b'))
-            employment_type = employment_type_element.strip() if employment_type_element else ''
+            # Extract employment type (Full-time/Part-time)
+            employment_type_element = parent.find(
+                string=re.compile(r'\b(Full-time|Part-time|Contract|משרה מלאה|משרה חלקית)\b'))
+            employment_type = employment_type_element.strip() if employment_type_element else 'Unknown Employment Type'
 
             logging.info(f"Processing job: {title_text} in {location_text} with experience level {experience_level}")
 
+            # Only add jobs that meet the junior position and location criteria
             if is_valid_job(title_text, location_text):
                 logging.info(f"Valid junior job found: {title_text}")
                 jobs.append({
@@ -115,27 +117,42 @@ def scrape_comeet_jobs(url, company_name):
 
 def store_jobs_in_database(jobs):
     """
-    Stores the scraped job postings in a PostgreSQL database.
+    Stores the scraped job postings in a PostgreSQL database, only if they don't already exist.
     """
     conn = psycopg2.connect(
         dbname='job_scraper',
         user='postgres',
-        password='INon16meir!',
+        password='INon16meir!',  # Replace with your actual password
         host='localhost',
         port='5432'
     )
     cursor = conn.cursor()
+
+    new_jobs = []
+
     for job in jobs:
+        # Check if the job already exists in the database
         cursor.execute("""
-            INSERT INTO jobs (company, title, location, description, link, date_posted)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (
-            job['company'], job['title'], job['location'], job['description'], job['link'], datetime.now()
-        ))
+            SELECT id FROM jobs WHERE company = %s AND title = %s AND location = %s
+        """, (job['company'], job['title'], job['location']))
+        result = cursor.fetchone()
+
+        if not result:  # If no result, the job is new
+            cursor.execute("""
+                INSERT INTO jobs (company, title, location, description, link, date_posted)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (
+                job['company'], job['title'], job['location'], job['description'], job['link'], datetime.now()
+            ))
+            new_jobs.append(job)
+
     conn.commit()
     cursor.close()
     conn.close()
-    logging.info(f"Stored {len(jobs)} jobs in the database")
+
+    logging.info(f"Stored {len(new_jobs)} new jobs in the database")
+
+    return new_jobs  # Return only the new jobs
 
 
 def send_email_notification(jobs):
@@ -161,8 +178,7 @@ def send_email_notification(jobs):
     try:
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.starttls()
-            server.login(sender,
-                         "lrda hqrz qzax blkf")  # Replace with your actual password or use an app-specific password
+            server.login(sender, "lrda hqrz qzax blkf")  # Replace with your actual password or app-specific password
             server.send_message(msg)
         logging.info(f"Email sent with {len(jobs)} job listings")
     except Exception as e:
@@ -172,21 +188,25 @@ def send_email_notification(jobs):
 def job_scraping_task():
     companies = {
         "inmanage": "https://www.comeet.com/jobs/inmanage/B7.006",
+        "buyme": "https://www.comeet.com/jobs/buyme/B2.008",
         "spark hire": "https://www.comeet.com/jobs/spark-hire/30.005",
         "okoora": "https://www.comeet.com/jobs/okoora/85.00C",
         "exodigo": "https://www.comeet.com/jobs/exodigo/89.005",
         # Add more companies using Comeet template here
     }
 
-    all_jobs = []
+    all_new_jobs = []
+
     for company, url in companies.items():
         logging.info(f"Scraping jobs for {company}...")
         jobs = scrape_comeet_jobs(url, company)
-        all_jobs.extend(jobs)
 
-    if all_jobs:
-        store_jobs_in_database(all_jobs)
-        send_email_notification(all_jobs)
+        # Store new jobs in the database and get only the new jobs
+        new_jobs = store_jobs_in_database(jobs)
+        all_new_jobs.extend(new_jobs)
+
+    if all_new_jobs:
+        send_email_notification(all_new_jobs)
     else:
         logging.info("No new junior jobs found in Israel")
 
