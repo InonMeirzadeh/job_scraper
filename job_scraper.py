@@ -120,7 +120,7 @@ def store_jobs_in_database(jobs):
     conn = psycopg2.connect(
         dbname='job_scraper',
         user='postgres',
-        password='INon16meir!',
+        password='****',
         host='localhost',
         port='5432'
     )
@@ -162,7 +162,7 @@ def send_email_notification(jobs):
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.starttls()
             server.login(sender,
-                         "lrda hqrz qzax blkf")  # Replace with your actual password or use an app-specific password
+                         "*****")  # Replace with your actual password or use an app-specific password
             server.send_message(msg)
         logging.info(f"Email sent with {len(jobs)} job listings")
     except Exception as e:
