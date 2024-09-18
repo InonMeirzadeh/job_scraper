@@ -132,7 +132,7 @@ def store_new_jobs_in_database(jobs):
     conn = psycopg2.connect(
         dbname='job_scraper',
         user='postgres',
-        password='INon16meir!',
+        password='****',
         host='localhost',
         port='5432'
     )
@@ -179,7 +179,7 @@ def send_email_notification(jobs):
     try:
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.starttls()
-            server.login(sender, "lrda hqrz qzax blkf")
+            server.login(sender, "****")
             server.send_message(msg)
         logging.info(f"Email sent with {len(jobs)} new job listings")
     except Exception as e:
@@ -189,6 +189,7 @@ def send_email_notification(jobs):
 def job_scraping_task():
     companies = {
         "inmanage": "https://www.comeet.com/jobs/inmanage/B7.006",
+        "buyme": "https://www.comeet.com/jobs/buyme/B2.008",
         "spark hire": "https://www.comeet.com/jobs/spark-hire/30.005",
         "okoora": "https://www.comeet.com/jobs/okoora/85.00C",
         "exodigo": "https://www.comeet.com/jobs/exodigo/89.005",
