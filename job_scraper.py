@@ -113,9 +113,21 @@ def scrape_comeet_jobs(url, company_name):
         driver.quit()
 
 
-def store_jobs_in_database(jobs):
+def is_job_in_database(cursor, job):
     """
-    Stores the scraped job postings in a PostgreSQL database.
+    Checks if the job is already in the database.
+    """
+    cursor.execute("""
+        SELECT * FROM jobs
+        WHERE company = %s AND title = %s AND location = %s AND link = %s
+    """, (job['company'], job['title'], job['location'], job['link']))
+    return cursor.fetchone() is not None
+
+
+def store_new_jobs_in_database(jobs):
+    """
+    Stores only new job postings in the PostgreSQL database.
+    Returns a list of newly added jobs.
     """
     conn = psycopg2.connect(
         dbname='job_scraper',
@@ -125,17 +137,23 @@ def store_jobs_in_database(jobs):
         port='5432'
     )
     cursor = conn.cursor()
+    new_jobs = []
+
     for job in jobs:
-        cursor.execute("""
-            INSERT INTO jobs (company, title, location, description, link, date_posted)
-            VALUES (%s, %s, %s, %s, %s, %s)
-        """, (
-            job['company'], job['title'], job['location'], job['description'], job['link'], datetime.now()
-        ))
+        if not is_job_in_database(cursor, job):
+            cursor.execute("""
+                INSERT INTO jobs (company, title, location, description, link, date_posted)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (
+                job['company'], job['title'], job['location'], job['description'], job['link'], datetime.now()
+            ))
+            new_jobs.append(job)
+
     conn.commit()
     cursor.close()
     conn.close()
-    logging.info(f"Stored {len(jobs)} jobs in the database")
+    logging.info(f"Stored {len(new_jobs)} new jobs in the database")
+    return new_jobs
 
 
 def send_email_notification(jobs):
@@ -161,10 +179,9 @@ def send_email_notification(jobs):
     try:
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.starttls()
-            server.login(sender,
-                         "lrda hqrz qzax blkf")  # Replace with your actual password or use an app-specific password
+            server.login(sender, "lrda hqrz qzax blkf")
             server.send_message(msg)
-        logging.info(f"Email sent with {len(jobs)} job listings")
+        logging.info(f"Email sent with {len(jobs)} new job listings")
     except Exception as e:
         logging.error(f"Failed to send email: {e}")
 
@@ -185,10 +202,13 @@ def job_scraping_task():
         all_jobs.extend(jobs)
 
     if all_jobs:
-        store_jobs_in_database(all_jobs)
-        send_email_notification(all_jobs)
+        new_jobs = store_new_jobs_in_database(all_jobs)
+        if new_jobs:
+            send_email_notification(new_jobs)
+        else:
+            logging.info("No new jobs to add to the database or send email about")
     else:
-        logging.info("No new junior jobs found in Israel")
+        logging.info("No junior jobs found in Israel")
 
 
 def main():
