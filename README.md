@@ -21,7 +21,7 @@ This project is a Python-based web scraper designed to extract junior-level job 
 1. Clone the repository:
 
     ```bash
-    git clone https://github.com/yourusername/job_scraper.git
+    git clone https://github.com/InonMeirzadeh/job_scraper.git
     cd job_scraper
     ```
 
