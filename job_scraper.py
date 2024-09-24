@@ -238,7 +238,7 @@ def job_scraping_task():
         "audiocodes": "https://www.comeet.com/jobs/audiocodes/85.004",
         "scaleops": "https://www.comeet.com/jobs/scaleops/99.003",
         "finout": "https://www.comeet.com/jobs/finout/07.006",
-        "ox_security": "https://www.comeet.com/jobs/ox_security/F8.006"
+        "ox_security": "https://www.comeet.com/jobs/ox_security/F8.006",
 
         # Add more companies using Comeet template here
     }
