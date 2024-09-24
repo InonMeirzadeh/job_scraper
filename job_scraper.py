@@ -14,7 +14,7 @@ from bs4 import BeautifulSoup
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def is_valid_job(title, location):
+def is_valid_job(title, location, experience_level):
     """
     Checks if the job is a junior position in Israel.
     """
@@ -22,15 +22,26 @@ def is_valid_job(title, location):
     junior_keywords = ['junior', 'entry-level', 'associate', 'graduate', 'מתחיל', 'זוטר']
     # Define keywords for locations in Israel
     location_keywords = ['israel', 'tel aviv', 'jerusalem', 'haifa', 'bnei brak', 'champion tower', 'שששת הימים',
-                         'רמת גן', 'הרצליה']
+                         'ramat gan', 'הרצליה']
 
     # Convert title and location to lowercase for case-insensitive matching
     title_lower = title.lower()
     location_lower = location.lower()
 
     # Check if any of the junior keywords and location keywords are present
-    is_junior = any(keyword in title_lower for keyword in junior_keywords)
+    is_junior = any(keyword in title_lower for keyword in junior_keywords) or experience_level == 'Entry-level'
+
+    if experience_level == 'Not specified' and 'junior' in title_lower:
+        is_junior = True
+        logging.info(f"Job with 'Junior' in title processed despite missing experience level: {title}")
+
     is_in_israel = any(keyword in location_lower for keyword in location_keywords)
+
+    # Add debug logs to see why a job might be skipped
+    if not is_junior:
+        logging.warning(f"Skipping job due to non-junior criteria: {title}")
+    if not is_in_israel:
+        logging.warning(f"Skipping job due to non-Israel location: {location}")
 
     return is_junior and is_in_israel
 
@@ -78,19 +89,21 @@ def scrape_comeet_jobs(url, company_name):
 
             # Extract job location by finding the 'fa fa-map-marker' icon's parent
             location_element = parent.find('i', class_='fa fa-map-marker')
-            location_text = location_element.find_next_sibling(text=True).strip() if location_element else ''
+            location_text = location_element.find_next_sibling(string=True).strip() if location_element else ''
 
             # Extract experience level using more precise text search
             experience_element = parent.find(string=re.compile(r'\b(Entry-level|Mid-level|Senior)\b'))
-            experience_level = experience_element.strip() if experience_element else ''
+            experience_level = experience_element.strip() if experience_element else 'Not specified'
 
             # Extract employment type
             employment_type_element = parent.find(string=re.compile(r'\b(Full-time|Part-time|Contract)\b'))
             employment_type = employment_type_element.strip() if employment_type_element else ''
 
+            if experience_level == 'Not specified':
+                logging.warning(f"Experience level not found for job: {title_text}")
             logging.info(f"Processing job: {title_text} in {location_text} with experience level {experience_level}")
 
-            if is_valid_job(title_text, location_text):
+            if is_valid_job(title_text, location_text, experience_level):
                 logging.info(f"Valid junior job found: {title_text}")
                 jobs.append({
                     'company': company_name,
@@ -101,6 +114,8 @@ def scrape_comeet_jobs(url, company_name):
                     'description': '',  # Add description extraction logic if available
                     'link': job_link
                 })
+            else:
+                logging.info(f"Skipping non-junior job: {title_text}")
 
         if jobs:
             logging.info(f"Found {len(jobs)} valid junior jobs for {company_name}")
@@ -132,7 +147,7 @@ def store_new_jobs_in_database(jobs):
     conn = psycopg2.connect(
         dbname='job_scraper',
         user='postgres',
-        password='****',
+        password='***',
         host='localhost',
         port='5432'
     )
@@ -179,7 +194,7 @@ def send_email_notification(jobs):
     try:
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.starttls()
-            server.login(sender, "****")
+            server.login(sender, "***")
             server.send_message(msg)
         logging.info(f"Email sent with {len(jobs)} new job listings")
     except Exception as e:
@@ -193,6 +208,8 @@ def job_scraping_task():
         "spark hire": "https://www.comeet.com/jobs/spark-hire/30.005",
         "okoora": "https://www.comeet.com/jobs/okoora/85.00C",
         "exodigo": "https://www.comeet.com/jobs/exodigo/89.005",
+        "dreamedai": "https://www.comeet.com/jobs/dreamedai/B9.002",
+        "chaoslabs": "https://www.comeet.com/jobs/chaoslabs/E8.007",
         # Add more companies using Comeet template here
     }
 
