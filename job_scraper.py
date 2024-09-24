@@ -21,8 +21,8 @@ def is_valid_job(title, location, experience_level):
     # Define keywords to capture junior-level positions
     junior_keywords = ['junior', 'entry-level', 'associate', 'graduate', 'מתחיל', 'זוטר']
     # Define keywords for locations in Israel
-    location_keywords = ['israel', 'tel aviv', 'jerusalem', 'haifa', 'bnei brak', 'champion tower', 'שששת הימים',
-                         'ramat gan', 'הרצליה']
+    location_keywords = ['israel', 'tel aviv', 'jerusalem', 'haifa', 'bnei brak', 'champion tower',
+                         'ramat gan','Hod HaSharon', 'TLV','rehovot', 'Herzliya', 'Or Yehuda']
 
     # Convert title and location to lowercase for case-insensitive matching
     title_lower = title.lower()
@@ -210,6 +210,36 @@ def job_scraping_task():
         "exodigo": "https://www.comeet.com/jobs/exodigo/89.005",
         "dreamedai": "https://www.comeet.com/jobs/dreamedai/B9.002",
         "chaoslabs": "https://www.comeet.com/jobs/chaoslabs/E8.007",
+        "novidea": "https://www.comeet.com/jobs/novidea/E5.00A",
+        "biocatch": "https://www.comeet.com/jobs/biocatch/03.00E",
+        "nova": "https://www.comeet.com/jobs/nova/A5.007",
+        "cellebrite": "https://www.comeet.com/jobs/Cellebrite/C3.00F",
+        "hunters": "https://www.comeet.com/jobs/hunters/67.007",
+        "moonactive": "https://www.comeet.com/jobs/moonactive/A2.00C",
+        "superplay": "https://www.comeet.com/jobs/superplay/28.003",
+        "matific": "https://www.comeet.com/jobs/matific/62.000",
+        "monday": "https://www.comeet.com/jobs/monday/41.00B",
+        "888jobs": "https://www.comeet.com/jobs/888jobs/E2.001",
+        "global-e": "https://www.comeet.com/jobs/global-e/62.002",
+        "cellebrite": "https://www.comeet.com/jobs/Cellebrite/C3.00F",
+        "minutemedia": "https://www.comeet.com/jobs/minutemedia/45.00A",
+        "kaltura": "https://www.comeet.com/jobs/kaltura/E2.00D",
+        "silk": "https://www.comeet.com/jobs/silk/F6.00C",
+        "tikalk": "https://www.comeet.com/jobs/tikalk/68.00C",
+        "spark-hire": "https://www.comeet.com/jobs/spark-hire/30.005",
+        "chargeflow": "https://www.comeet.com/jobs/chargeflow/29.001",
+        "team8": "https://www.comeet.com/jobs/team8/61.003",
+        "tictuk": "https://www.comeet.com/jobs/tictuk/78.002",
+        "atera": "https://www.comeet.com/jobs/atera/63.00B",
+        "etoro": "https://www.comeet.com/jobs/etoro/41.009",
+        "lusha": "https://www.comeet.com/jobs/lusha/73.00B",
+        "365scores": "https://www.comeet.com/jobs/365scores/B3.006",
+        "wsc-sports": "https://www.comeet.com/jobs/wsc-sports/93.007",
+        "audiocodes": "https://www.comeet.com/jobs/audiocodes/85.004",
+        "scaleops": "https://www.comeet.com/jobs/scaleops/99.003",
+        "finout": "https://www.comeet.com/jobs/finout/07.006",
+        "ox_security": "https://www.comeet.com/jobs/ox_security/F8.006"
+
         # Add more companies using Comeet template here
     }
 
@@ -231,7 +261,7 @@ def job_scraping_task():
 
 def main():
     job_scraping_task()
-    schedule.every(1).minutes.do(job_scraping_task)
+    schedule.every(50).minutes.do(job_scraping_task)
 
     while True:
         schedule.run_pending()
